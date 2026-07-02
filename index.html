@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#191919">
+<title>記帳本</title>
+<style>
+  :root {
+    --bg: #191919;
+    --bg2: #222222;
+    --bg3: #2a2a2a;
+    --border: #333333;
+    --border2: #444444;
+    --text: #e8e8e8;
+    --text2: #999999;
+    --text3: #666666;
+    --accent: #e85d3a;
+    --accent2: #c44d2d;
+    --green: #4caf7d;
+    --green2: #3a8f63;
+    --tag-bg: #2e2e2e;
+    --want: #e85d3a;
+    --need: #4caf7d;
+    --radius: 8px;
+    --radius2: 12px;
+  }
+  body.light {
+    --bg: #f5f4f0;
+    --bg2: #ffffff;
+    --bg3: #eeece8;
+    --border: #dddbd6;
+    --border2: #c8c6c0;
+    --text: #1a1a1a;
+    --text2: #666666;
+    --text3: #aaaaaa;
+    --tag-bg: #e8e6e2;
+  }
+  body.light .tag-btn { color: #333333 !important; }
+  body.light .tag-btn.active { color: #fff !important; }
+  body.light .table-tag { color: #1a1a1a !important; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Noto Sans TC', sans-serif; min-height: 100vh; }
+
+  .app { max-width: 780px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+
+  .page-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+  .page-title { font-size: 26px; font-weight: 600; margin-bottom: 4px; }
+  .page-meta { font-size: 13px; color: var(--text2); margin-bottom: 2rem; }
+
+  /* AI 輸入區 */
+  .ai-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius2); padding: 1rem 1.25rem; margin-bottom: 1.75rem; }
+  .ai-label { font-size: 12px; color: var(--text3); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .ai-row { display: flex; gap: 8px; }
+  .ai-input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 12px; font-size: 14px; color: var(--text); outline: none; }
+  .ai-input::placeholder { color: var(--text3); }
+  .ai-input:focus { border-color: var(--border2); }
+  .ai-btn { background: var(--text); color: var(--bg); border: none; border-radius: var(--radius); padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .ai-btn:hover { background: #ccc; }
+  .ai-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* 概覽卡片 */
+  .section-label { font-size: 11px; color: var(--text3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.75rem; }
+  .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 2rem; }
+  .summary-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius2); padding: 1rem 1.25rem; }
+  .summary-card .s-label { font-size: 12px; color: var(--text2); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+  .summary-card .s-val { font-size: 22px; font-weight: 600; transition: filter 0.2s; }
+  .summary-card .s-val.hidden-val { filter: blur(6px); user-select: none; }
+  .s-val.red { color: var(--accent); }
+  .s-val.green { color: var(--green); }
+  .s-val.neutral { color: var(--text); }
+  .eye-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 13px; padding: 0; line-height: 1; }
+  .eye-btn:hover { color: var(--text2); }
+
+  /* 月份篩選 */
+  .month-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .month-btn { background: none; border: 1px solid var(--border); border-radius: var(--radius); padding: 5px 10px; color: var(--text2); font-size: 13px; cursor: pointer; }
+  .month-btn:hover { border-color: var(--border2); color: var(--text); }
+  .month-display { font-size: 14px; font-weight: 500; min-width: 80px; text-align: center; }
+
+  /* 新增按鈕 */
+  .add-btn { background: none; border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 14px; color: var(--text2); font-size: 13px; cursor: pointer; margin-bottom: 1rem; display: flex; align-items: center; gap: 6px; }
+  .add-btn:hover { border-color: var(--border2); color: var(--text); }
+
+  /* 表格 */
+  .table-wrap { border: 1px solid var(--border); border-radius: var(--radius2); overflow: hidden; }
+  .table-head { display: grid; grid-template-columns: 72px minmax(0,1.5fr) 72px 72px 80px 72px 32px minmax(0,1fr); padding: 8px 14px; background: var(--bg2); border-bottom: 1px solid var(--border); gap: 8px; }
+  .table-head span { font-size: 11px; color: var(--text3); font-weight: 600; letter-spacing: 0.04em; }
+  .table-row { display: grid; grid-template-columns: 72px minmax(0,1.5fr) 72px 72px 80px 72px 32px minmax(0,1fr); padding: 8px 14px; min-height: 42px; border-bottom: 1px solid var(--border); gap: 8px; align-items: center; cursor: pointer; transition: background 0.1s; overflow: hidden; }
+  .table-row:last-child { border-bottom: none; }
+  .table-row:hover { background: var(--bg2); }
+  .cell { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .cell.date { color: var(--text2); font-size: 12px; }
+  .cell.amount { color: var(--accent); font-weight: 500; }
+  .cell.income { color: var(--green); font-weight: 500; }
+  .cell.income.empty { color: var(--text3); font-weight: 400; }
+  .cell.muted { color: var(--text3); }
+  .cat-tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; background: var(--tag-bg); color: var(--text2); border: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .check-box { width: 16px; height: 16px; border: 1px solid var(--border2); border-radius: 3px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; align-self: center; }
+  .check-box.checked { background: var(--green); border-color: var(--green); }
+  .check-box.checked::after { content: '✓'; font-size: 10px; color: #fff; }
+
+  /* 空狀態 */
+  .empty-state { padding: 3rem; text-align: center; color: var(--text3); font-size: 14px; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+  .modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius2); width: 100%; max-width: 520px; max-height: 92vh; display: flex; flex-direction: column; }
+  .modal-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-close { background: none; border: none; color: var(--text2); font-size: 20px; cursor: pointer; line-height: 1; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+  .modal-footer { flex-shrink: 0; padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field label { font-size: 12px; color: var(--text2); }
+  .field input, .field select, .field textarea {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 8px 10px; font-size: 14px; color: var(--text); outline: none; width: 100%;
+    font-family: inherit;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--border2); }
+  .field select option { background: var(--bg3); }
+  .field textarea { resize: vertical; min-height: 60px; display: block; }
+
+  /* 支付方式 combo */
+  .combo-wrap { position: relative; height: 38px; }
+  .combo-input { width: 100%; height: 100%; }
+  .combo-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--radius); z-index: 10; max-height: 160px; overflow-y: auto; margin-top: 2px; }
+  .combo-option { padding: 8px 10px; font-size: 13px; cursor: pointer; color: var(--text); }
+  .combo-option:hover { background: var(--bg2); }
+  .hidden { display: none; }
+
+  /* 打勾 row */
+  .check-field { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .check-field input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
+  .check-field span { font-size: 13px; color: var(--text2); }
+
+  /* 按鈕 */
+  .btn { border: none; border-radius: var(--radius); padding: 8px 18px; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .btn-primary { background: var(--text); color: var(--bg); }
+  .btn-primary:hover { background: #ccc; }
+  .btn-danger { background: none; border: 1px solid var(--border); color: var(--accent); }
+  .btn-danger:hover { background: rgba(232,93,58,0.1); }
+  .btn-ghost { background: none; border: 1px solid var(--border); color: var(--text2); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+  .tag-btn { background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 11px; color: var(--text2) !important; cursor: pointer; }
+  .tag-btn.active { color: #fff !important; }
+  #tagWant.active { background: var(--want); border-color: var(--want); }
+  #tagNeed.active { background: var(--need); border-color: var(--need); }
+
+  .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+  .top-bar .page-meta { margin-bottom: 0; }
+  .settings-btn { background: none; border: 1px solid var(--border); border-radius: var(--radius); padding: 5px 12px; color: var(--text2); font-size: 12px; cursor: pointer; }
+  .settings-btn:hover { border-color: var(--border2); color: var(--text); }
+  .settings-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius2); padding: 1.25rem; margin-bottom: 1.5rem; display: none; }
+  .settings-panel.open { display: block; }
+  .settings-title { font-size: 13px; font-weight: 500; margin-bottom: 1rem; color: var(--text2); }
+  .color-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .color-row label { font-size: 13px; color: var(--text2); min-width: 80px; }
+  .color-row input[type=color] { width: 36px; height: 28px; border: 1px solid var(--border2); border-radius: 4px; background: none; cursor: pointer; padding: 2px; }
+  .color-preview { font-size: 13px; font-weight: 500; }
+
+  .ai-preview { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; font-size: 13px; color: var(--text2); margin-top: 0.5rem; }
+  .ai-preview strong { color: var(--text); }
+
+  /* 圓環圖 */
+  .chart-section { margin-bottom: 2rem; }
+  .chart-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius2); padding: 1.25rem; }
+  .donut-svg { flex-shrink: 0; }
+  .legend { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-name { color: var(--text2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend-val { color: var(--text); font-weight: 500; }
+  .chart-empty { color: var(--text3); font-size: 13px; text-align: center; padding: 1rem 0; }
+
+  /* 搜尋篩選 */
+  .filter-row { display: flex; gap: 8px; margin-bottom: 0.75rem; align-items: center; flex-wrap: wrap; }
+  .filter-input { flex: 1; min-width: 140px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px; font-size: 13px; color: var(--text); outline: none; }
+  .filter-input:focus { border-color: var(--border2); }
+  .filter-input::placeholder { color: var(--text3); }
+  .filter-select { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px; font-size: 13px; color: var(--text2); outline: none; cursor: pointer; }
+  .filter-select:focus { border-color: var(--border2); }
+  .filter-select option { background: var(--bg3); }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 768px) {
+    .table-head, .table-row { grid-template-columns: 60px minmax(0,1fr) 70px 70px 32px minmax(0,1fr); }
+    .table-head span:nth-child(4), .table-head span:nth-child(5), .table-head span:nth-child(6),
+    .table-row > *:nth-child(4), .table-row > *:nth-child(5), .table-row > *:nth-child(6) { display: none; }
+  }
+  @media (max-width: 480px) {
+    .table-head, .table-row { grid-template-columns: 52px minmax(0,1fr) 64px 24px; }
+    .table-head span:nth-child(n+4), .table-row > *:nth-child(n+4) { display: none; }
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+    .summary-grid .summary-card:last-child { grid-column: span 2; }
+    .app { padding: 1rem 0.75rem 3rem; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top-bar">
+    <div class="page-meta" id="pageMeta"></div>
+    <button class="settings-btn" onclick="toggleSettings()">⚙ 設定</button>
+  </div>
+
+  <!-- 設定面板 -->
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-title">Notion 同步</div>
+    <div class="color-row" style="align-items:flex-start;flex-direction:column;gap:6px;">
+      <input type="text" id="notionWorkerUrl" placeholder="Worker 網址，例：https://notion-proxy.xxx.workers.dev" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:13px;color:var(--text);outline:none;font-family:monospace;" />
+      <input type="text" id="notionDbId" placeholder="Database ID" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:13px;color:var(--text);outline:none;font-family:monospace;" />
+      <div style="display:flex;gap:8px;width:100%;">
+        <button class="btn btn-ghost" onclick="saveNotionConfig()" style="white-space:nowrap;">儲存設定</button>
+        <button class="btn btn-ghost" onclick="pullFromNotion()" style="white-space:nowrap;">從 Notion 讀取</button>
+        <button class="btn btn-ghost" onclick="detectDatabaseId()" style="white-space:nowrap;">自動偵測 ID</button>
+      </div>
+      <div id="notionStatus" style="font-size:12px;color:var(--text3);">尚未設定</div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:1rem 0;"></div>
+    <div class="settings-title">API Key（AI 解析功能）</div>
+    <div class="color-row" style="align-items:flex-start;flex-direction:column;gap:6px;">
+      <div style="display:flex;gap:8px;width:100%;">
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-…" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:13px;color:var(--text);outline:none;font-family:monospace;" />
+        <button class="btn btn-ghost" onclick="saveApiKey()" style="white-space:nowrap;">儲存</button>
+        <button class="btn btn-ghost" onclick="clearApiKey()" style="white-space:nowrap;color:var(--accent);">清除</button>
+      </div>
+      <div id="apiKeyStatus" style="font-size:12px;color:var(--text3);">尚未設定</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;">
+        Key 只存在你的瀏覽器，不會傳送到任何伺服器。<br>
+        申請網址：<a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--text2);">console.anthropic.com</a>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:1rem 0;"></div>
+    <div class="settings-title">支付方式管理</div>
+    <div id="payOptionsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+
+    <div style="border-top:1px solid var(--border);margin:1rem 0;"></div>
+    <div class="settings-title">大分類管理</div>
+    <div id="catOptionsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+
+    <div style="border-top:1px solid var(--border);margin:1rem 0;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+      <div class="settings-title" style="margin:0;">外觀</div>
+      <button id="themeBtn" onclick="toggleTheme()" style="background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 16px;font-size:12px;color:var(--text2);cursor:pointer;min-width:72px;">深色</button>
+    </div>
+    <div style="border-top:1px solid var(--border);margin:1rem 0;"></div>
+    <div class="settings-title">自訂顏色</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+      <div class="color-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
+        <label>花費</label>
+        <input type="color" id="colorExpense" value="#e85d3a" oninput="applyColor('accent', this.value)" />
+      </div>
+      <div class="color-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
+        <label>收入</label>
+        <input type="color" id="colorIncome" value="#4caf7d" oninput="applyColor('green', this.value)" />
+      </div>
+      <div class="color-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
+        <label>想要</label>
+        <input type="color" id="colorWant" value="#e85d3a" oninput="applyTagColor('want', this.value)" />
+      </div>
+      <div class="color-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
+        <label>需要</label>
+        <input type="color" id="colorNeed" value="#4caf7d" oninput="applyTagColor('need', this.value)" />
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 輸入 -->
+  <div class="ai-box">
+    <div class="ai-label">✦ 用自然語言輸入，AI 自動解析</div>
+    <div class="ai-row">
+      <input class="ai-input" id="aiInput" type="text" placeholder="例：午餐便當 120 / ikea 478 刷卡 / 收入獎金 3000" />
+      <button class="ai-btn" id="aiBtn" onclick="handleAI()">解析</button>
+    </div>
+  </div>
+
+  <!-- 概覽 + 圓環圖並排 -->
+  <div class="section-label">本月概覽</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:2rem;">
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="summary-card"><div class="s-label">總花費 <button class="eye-btn" onclick="togglePrivacy('totalExpense',this)">☆</button></div><div class="s-val red" id="totalExpense">$0</div></div>
+      <div class="summary-card"><div class="s-label">總收入 <button class="eye-btn" onclick="togglePrivacy('totalIncome',this)">☆</button></div><div class="s-val green" id="totalIncome">$0</div></div>
+      <div class="summary-card"><div class="s-label">筆數</div><div class="s-val neutral" id="totalCount">0</div></div>
+    </div>
+    <div class="chart-wrap" id="chartWrap" style="align-self:stretch;">
+      <div class="chart-empty">這個月還沒有支出記錄</div>
+    </div>
+  </div>
+
+  <!-- 月份切換 + 新增 -->
+  <div class="section-label">支出明細</div>
+  <div class="month-row">
+    <button class="month-btn" onclick="changeMonth(-1)">‹</button>
+    <div class="month-display" id="monthDisplay"></div>
+    <button class="month-btn" onclick="changeMonth(1)">›</button>
+  </div>
+  <div class="filter-row">
+    <input class="filter-input" id="filterSearch" type="text" placeholder="搜尋品項…" oninput="renderTable()" />
+    <select class="filter-select" id="filterCheck" onchange="renderTable()">
+      <option value="all">全部</option>
+      <option value="done">已完成</option>
+      <option value="undone">未完成</option>
+    </select>
+  </div>
+  <button class="add-btn" onclick="openModal()">＋ 新增記錄</button>
+
+  <!-- 表格 -->
+  <div class="table-wrap">
+    <div class="table-head">
+      <span>日期</span><span>品項</span><span>花費</span><span>收入</span><span>分類</span><span>支付</span><span>✓</span><span>備註</span>
+    </div>
+    <div id="tableBody"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay hidden" id="modalOverlay" onclick="closeOnOverlay(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">新增記錄</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field">
+          <label>日期</label>
+          <input type="date" id="fDate" />
+        </div>
+        <div class="field">
+          <label>品項</label>
+          <input type="text" id="fItem" placeholder="午餐便當" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>花費</label>
+          <input type="number" id="fExpense" placeholder="0" min="0" />
+        </div>
+        <div class="field">
+          <label>收入</label>
+          <input type="number" id="fIncome" placeholder="0" min="0" />
+        </div>
+      </div>
+      <div class="field">
+        <label>大分類</label>
+        <div class="combo-wrap">
+          <input class="combo-input" type="text" id="fCat" placeholder="餐飲、交通、購物…" autocomplete="off"
+            oninput="showCatCombo()" onfocus="showCatCombo()" onblur="setTimeout(hideCatCombo,150)" />
+          <div class="combo-dropdown hidden" id="catDropdown"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>支付方式</label>
+        <div class="combo-wrap">
+          <input class="combo-input" type="text" id="fPay" placeholder="刷卡、現金…" autocomplete="off"
+            oninput="showCombo()" onfocus="showCombo()" onblur="setTimeout(hideCombo,150)" />
+          <div class="combo-dropdown hidden" id="comboDropdown"></div>
+        </div>
+      </div>
+      <div class="field" style="display:flex;flex-direction:column;gap:5px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <label style="font-size:12px;color:var(--text2);">備註</label>
+          <div style="display:flex;gap:4px;">
+            <button id="tagWant" onclick="toggleTag('想要')" class="tag-btn">想要</button>
+            <button id="tagNeed" onclick="toggleTag('需要')" class="tag-btn">需要</button>
+          </div>
+        </div>
+        <textarea id="fNote" placeholder="選填" oninput="calcNote();autoResize(this)" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:14px;color:var(--text);outline:none;width:100%;font-family:inherit;resize:none;min-height:70px;display:block;overflow:hidden;"></textarea>
+        <div id="noteCalcResult" style="font-size:12px;color:var(--text2);margin-top:4px;min-height:18px;"></div>
+      </div>
+      <label class="check-field">
+        <input type="checkbox" id="fCheck" />
+        <span>已處理完成</span>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger hidden" id="deleteBtn" onclick="deleteRecord()">刪除</button>
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveRecord()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_CATS = ['餐飲','交通','購物','日用','娛樂','醫療','其他'];
+let records = [];
+let cats = [];
+let payOptions = [];
+let currentMonth = new Date().toISOString().slice(0,7);
+let editingId = null;
+
+function load() {
+  records = JSON.parse(localStorage.getItem('ledger_records') || '[]');
+  cats = JSON.parse(localStorage.getItem('ledger_cats') || JSON.stringify(DEFAULT_CATS));
+  payOptions = JSON.parse(localStorage.getItem('ledger_pay') || '["刷卡","現金","育森"]');
+}
+function save() {
+  localStorage.setItem('ledger_records', JSON.stringify(records));
+  localStorage.setItem('ledger_cats', JSON.stringify(cats));
+  localStorage.setItem('ledger_pay', JSON.stringify(payOptions));
+}
+
+// ===== Notion 同步 =====
+function getNotionConfig() {
+  return {
+    workerUrl: (localStorage.getItem('notion_worker_url') || '').replace(/\/$/, ''),
+    dbId: localStorage.getItem('notion_db_id') || ''
+  };
+}
+function notionEnabled() {
+  const c = getNotionConfig();
+  return !!(c.workerUrl && c.dbId);
+}
+function saveNotionConfig() {
+  const url = document.getElementById('notionWorkerUrl').value.trim();
+  const dbId = document.getElementById('notionDbId').value.trim();
+  localStorage.setItem('notion_worker_url', url);
+  localStorage.setItem('notion_db_id', dbId);
+  updateNotionStatus('已儲存設定', 'var(--green)');
+}
+function loadNotionConfig() {
+  const c = getNotionConfig();
+  document.getElementById('notionWorkerUrl').value = c.workerUrl;
+  document.getElementById('notionDbId').value = c.dbId;
+  updateNotionStatus(notionEnabled() ? '已設定' : '尚未設定', notionEnabled() ? 'var(--green)' : 'var(--text3)');
+}
+function updateNotionStatus(text, color) {
+  const el = document.getElementById('notionStatus');
+  if (el) { el.textContent = text; el.style.color = color; }
+}
+
+function buildNotionProperties(r) {
+  return {
+    '名稱': { title: [{ text: { content: r.item || '' } }] },
+    '日期': r.date ? { date: { start: r.date } } : { date: null },
+    '花費': { number: r.expense ? parseFloat(r.expense) : 0 },
+    '收入': { number: r.income ? parseFloat(r.income) : 0 },
+    '大分類': { select: r.cat ? { name: r.cat } : null },
+    '支付方式': { select: r.pay ? { name: r.pay } : null },
+    '標籤': { select: r.tag ? { name: r.tag } : null },
+    '已完成': { checkbox: !!r.checked },
+    '備註': { rich_text: [{ text: { content: r.note || '' } }] }
+  };
+}
+
+async function pushRecordToNotion(record) {
+  if (!notionEnabled()) return;
+  const c = getNotionConfig();
+  try {
+    if (record.notionId) {
+      await fetch(`${c.workerUrl}/v1/pages/${record.notionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ properties: buildNotionProperties(record) })
+      });
+    } else {
+      const res = await fetch(`${c.workerUrl}/v1/pages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: { database_id: c.dbId }, properties: buildNotionProperties(record) })
+      });
+      const data = await res.json();
+      if (data.id) { record.notionId = data.id; save(); }
+    }
+  } catch(e) { console.error('Notion 同步失敗', e); }
+}
+
+async function archiveNotionPage(notionId) {
+  if (!notionEnabled() || !notionId) return;
+  const c = getNotionConfig();
+  try {
+    await fetch(`${c.workerUrl}/v1/pages/${notionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archived: true })
+    });
+  } catch(e) { console.error('Notion 刪除失敗', e); }
+}
+
+function parseNotionPage(page) {
+  const p = page.properties;
+  const getTitle = (prop) => prop?.title?.[0]?.plain_text || '';
+  const getText = (prop) => prop?.rich_text?.[0]?.plain_text || '';
+  const getSelect = (prop) => prop?.select?.name || '';
+  const getNumber = (prop) => prop?.number ?? '';
+  return {
+    id: page.id,
+    notionId: page.id,
+    date: p['日期']?.date?.start || '',
+    item: getTitle(p['名稱']),
+    expense: getNumber(p['花費']),
+    income: getNumber(p['收入']),
+    cat: getSelect(p['大分類']),
+    pay: getSelect(p['支付方式']),
+    tag: getSelect(p['標籤']),
+    checked: p['已完成']?.checkbox || false,
+    note: getText(p['備註'])
+  };
+}
+
+async function detectDatabaseId() {
+  const url = document.getElementById('notionWorkerUrl').value.trim().replace(/\/$/, '');
+  const pageId = document.getElementById('notionDbId').value.trim();
+  if (!url || !pageId) { updateNotionStatus('請先填入 Worker 網址與目前的 ID', 'var(--accent)'); return; }
+  updateNotionStatus('偵測中…', 'var(--text2)');
+  try {
+    const res = await fetch(`${url}/v1/blocks/${pageId}/children?page_size=50`);
+    const data = await res.json();
+    if (!data.results) throw new Error(data.message || '偵測失敗');
+    const dbBlock = data.results.find(b => b.type === 'child_database');
+    if (dbBlock) {
+      document.getElementById('notionDbId').value = dbBlock.id;
+      saveNotionConfig();
+      updateNotionStatus('已偵測到正確 Database ID，並自動儲存', 'var(--green)');
+    } else {
+      updateNotionStatus('找不到內嵌資料庫，請確認頁面內容', 'var(--accent)');
+    }
+  } catch(e) {
+    updateNotionStatus('偵測失敗：' + e.message, 'var(--accent)');
+    console.error(e);
+  }
+}
+
+async function pullFromNotion() {
+  if (!notionEnabled()) { updateNotionStatus('請先填入 Worker 網址與 Database ID', 'var(--accent)'); return; }
+  const c = getNotionConfig();
+  updateNotionStatus('讀取中…', 'var(--text2)');
+  try {
+    let allResults = [];
+    let hasMore = true, startCursor = undefined;
+    while (hasMore) {
+      const body = startCursor ? { start_cursor: startCursor } : {};
+      const res = await fetch(`${c.workerUrl}/v1/databases/${c.dbId}/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!data.results) throw new Error(data.message || '讀取失敗');
+      allResults = allResults.concat(data.results);
+      hasMore = data.has_more;
+      startCursor = data.next_cursor;
+    }
+    records = allResults.map(parseNotionPage);
+    allResults.forEach(page => {
+      const r = parseNotionPage(page);
+      if (r.cat && !cats.includes(r.cat)) cats.push(r.cat);
+      if (r.pay && !payOptions.includes(r.pay)) payOptions.push(r.pay);
+    });
+    save();
+    updateNotionStatus(`已同步 ${records.length} 筆`, 'var(--green)');
+    render();
+  } catch(e) {
+    updateNotionStatus('讀取失敗，請檢查設定', 'var(--accent)');
+    console.error(e);
+  }
+}
+
+
+function monthLabel(ym) {
+  const [y,m] = ym.split('-');
+  return `${y} 年 ${parseInt(m)} 月`;
+}
+
+const CHART_COLORS = ['#b5907a','#8fa5a0','#c4a882','#8d9db6','#b8a9c9','#9dada8','#c9a98a','#a0a8b8'];
+
+function render() {
+  document.getElementById('pageMeta').textContent = monthLabel(currentMonth);
+  document.getElementById('monthDisplay').textContent = monthLabel(currentMonth);
+
+  const filtered = records.filter(r => r.date && r.date.startsWith(currentMonth));
+  const totalExp = filtered.reduce((s,r) => s + (parseFloat(r.expense)||0), 0);
+  const totalInc = filtered.reduce((s,r) => s + (parseFloat(r.income)||0), 0);
+  document.getElementById('totalExpense').textContent = `$${totalExp.toLocaleString()}`;
+  document.getElementById('totalIncome').textContent = `$${totalInc.toLocaleString()}`;
+  document.getElementById('totalCount').textContent = filtered.length;
+
+  renderChart(filtered);
+  renderTable();
+}
+
+function renderChart(filtered) {
+  const wrap = document.getElementById('chartWrap');
+  const expOnly = filtered.filter(r => parseFloat(r.expense) > 0);
+  if (!expOnly.length) {
+    wrap.innerHTML = '<div class="chart-empty">這個月還沒有支出記錄</div>';
+    wrap.style.display = '';
+    return;
+  }
+
+  const catMap = {};
+  expOnly.forEach(r => {
+    const k = r.cat || '其他';
+    catMap[k] = (catMap[k] || 0) + parseFloat(r.expense);
+  });
+  const entries = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
+  const total = entries.reduce((s,[,v]) => s+v, 0);
+
+  const cards = entries.map(([name, val], i) => {
+    const pct = Math.round(val / total * 100);
+    const color = CHART_COLORS[i % CHART_COLORS.length];
+    const isLight = document.body.classList.contains('light');
+    const textMain = isLight ? 'rgba(0,0,0,0.8)' : '#fff';
+    const textSub = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.65)';
+    const textMuted = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)';
+    return `<div style="background:${color}88;border-radius:10px;padding:0.75rem 1rem;">
+      <div style="font-size:12px;color:${textSub};margin-bottom:6px;">${name}</div>
+      <div style="font-size:17px;font-weight:600;color:${textMain};margin-bottom:4px;">$${val.toLocaleString()}</div>
+      <div style="font-size:11px;color:${textMuted};">${pct}%</div>
+    </div>`;
+  }).join('');
+
+  wrap.style.display = 'block';
+  wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;width:100%;">${cards}</div>`;
+}
+
+function renderTable() {
+  const search = (document.getElementById('filterSearch')?.value || '').toLowerCase();
+  const checkFilter = document.getElementById('filterCheck')?.value || 'all';
+
+  let filtered = records.filter(r => r.date && r.date.startsWith(currentMonth));
+  if (search) filtered = filtered.filter(r => (r.item||'').toLowerCase().includes(search));
+  if (checkFilter === 'done') filtered = filtered.filter(r => r.checked);
+  if (checkFilter === 'undone') filtered = filtered.filter(r => !r.checked);
+  filtered.sort((a,b) => b.date.localeCompare(a.date));
+
+  const body = document.getElementById('tableBody');
+  if (!filtered.length) {
+    body.innerHTML = '<div class="empty-state">沒有符合的記錄</div>';
+    return;
+  }
+  body.innerHTML = filtered.map(r => `
+    <div class="table-row" onclick="openModal('${r.id}')">
+      <div class="cell date">${r.date ? r.date.slice(5).replace('-','/') : ''}</div>
+      <div class="cell">${r.item || '—'}</div>
+      <div class="cell amount">${r.expense ? '$'+parseFloat(r.expense).toLocaleString() : '—'}</div>
+      <div class="cell income ${r.income && parseFloat(r.income) > 0 ? '' : 'empty'}">${r.income && parseFloat(r.income) > 0 ? '$'+parseFloat(r.income).toLocaleString() : '—'}</div>
+      <div class="cell"><span class="cat-tag">${r.cat || '—'}</span></div>
+      <div class="cell muted">${r.pay || '—'}</div>
+      <div class="check-box ${r.checked ? 'checked' : ''}" onclick="toggleCheck(event,'${r.id}')"></div>
+      <div class="cell muted" style="font-size:12px;display:flex;align-items:flex-start;gap:4px;overflow:hidden;min-width:0;white-space:normal;flex-wrap:wrap;">
+        ${r.tag === '想要' ? `<span class="table-tag" style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--want);color:#fff;flex-shrink:0;margin-top:1px;">想要</span>` : r.tag === '需要' ? `<span class="table-tag" style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--need);color:#fff;flex-shrink:0;margin-top:1px;">需要</span>` : ''}
+        <span style="word-break:break-word;">${r.note || ''}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function changeMonth(dir) {
+  const [y,m] = currentMonth.split('-').map(Number);
+  const d = new Date(y, m-1+dir, 1);
+  currentMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  render();
+}
+
+function toggleCheck(e, id) {
+  e.stopPropagation();
+  const r = records.find(x => x.id === id);
+  if (r) { r.checked = !r.checked; save(); render(); pushRecordToNotion(r); }
+}
+
+function openModal(id) {
+  editingId = id || null;
+  const overlay = document.getElementById('modalOverlay');
+  overlay.classList.remove('hidden');
+
+
+  if (id) {
+    document.getElementById('modalTitle').textContent = '編輯記錄';
+    document.getElementById('deleteBtn').classList.remove('hidden');
+    const r = records.find(x => x.id === id);
+    if (r) {
+      document.getElementById('fDate').value = r.date || '';
+      document.getElementById('fItem').value = r.item || '';
+      document.getElementById('fExpense').value = r.expense || '';
+      document.getElementById('fIncome').value = r.income || '';
+      document.getElementById('fCat').value = r.cat || '';
+      document.getElementById('fPay').value = r.pay || '';
+      document.getElementById('fNote').value = r.note || '';
+      document.getElementById('fCheck').checked = r.checked || false;
+      loadTag(r.tag || '');
+    }
+  } else {
+    document.getElementById('modalTitle').textContent = '新增記錄';
+    document.getElementById('deleteBtn').classList.add('hidden');
+    document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
+    document.getElementById('fItem').value = '';
+    document.getElementById('fExpense').value = '';
+    document.getElementById('fIncome').value = '';
+    document.getElementById('fCat').value = '';
+    document.getElementById('fSubCat') && (document.getElementById('fSubCat').value = '');
+    document.getElementById('fPay').value = '';
+    document.getElementById('fNote').value = '';
+    document.getElementById('fCheck').checked = false;
+    resetTags();
+  }
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.add('hidden');
+  editingId = null;
+}
+function closeOnOverlay(e) { if (e.target.id === 'modalOverlay') closeModal(); }
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+function calcNote() {
+  const text = document.getElementById('fNote').value;
+  const resultEl = document.getElementById('noteCalcResult');
+  const exprMatch = text.match(/[\d+\-*\/\.\(\)\s]+/g);
+  if (!exprMatch) { resultEl.textContent = ''; return; }
+  const results = [];
+  exprMatch.forEach(expr => {
+    const clean = expr.trim();
+    if (!/\d/.test(clean) || !/[+\-*\/]/.test(clean)) return;
+    try {
+      const val = Function('"use strict"; return (' + clean + ')')();
+      if (typeof val === 'number' && isFinite(val)) {
+        results.push(`${clean.trim()} = ${Math.round(val * 100) / 100}`);
+      }
+    } catch(e) {}
+  });
+  resultEl.textContent = results.length ? '= ' + results.map(r => r.split('= ')[1]).join(' / ') : '';
+}
+
+
+function toggleTag(tag) {
+  const wantBtn = document.getElementById('tagWant');
+  const needBtn = document.getElementById('tagNeed');
+  if (tag === '想要') {
+    const isActive = wantBtn.classList.toggle('active');
+    needBtn.classList.remove('active');
+  } else {
+    const isActive = needBtn.classList.toggle('active');
+    wantBtn.classList.remove('active');
+  }
+}
+
+function resetTags() {
+  ['tagWant','tagNeed'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  });
+}
+
+function loadTag(tag) {
+  resetTags();
+  if (tag === '想要') toggleTag('想要');
+  else if (tag === '需要') toggleTag('需要');
+}
+
+
+
+function showCatCombo() {
+  const val = document.getElementById('fCat').value.toLowerCase();
+  const opts = cats.filter(o => o.toLowerCase().includes(val));
+  const dd = document.getElementById('catDropdown');
+  if (!opts.length) { dd.classList.add('hidden'); return; }
+  dd.innerHTML = opts.map(o => `<div class="combo-option" onmousedown="selectCat('${o}')">${o}</div>`).join('');
+  dd.classList.remove('hidden');
+}
+function hideCatCombo() { document.getElementById('catDropdown').classList.add('hidden'); }
+function selectCat(val) {
+  document.getElementById('fCat').value = val;
+  hideCatCombo();
+}
+
+function saveRecord() {
+  const date = document.getElementById('fDate').value;
+  const item = document.getElementById('fItem').value.trim();
+  const expense = document.getElementById('fExpense').value;
+  const income = document.getElementById('fIncome').value;
+  const cat = document.getElementById('fCat').value;
+  const subcat = '';
+  const pay = document.getElementById('fPay').value.trim();
+  const note = document.getElementById('fNote').value.trim();
+  const checked = document.getElementById('fCheck').checked;
+  const tag = document.querySelector('#tagWant.active') ? '想要' : document.querySelector('#tagNeed.active') ? '需要' : '';
+
+  if (!item && !expense && !income) return;
+
+  if (pay && !payOptions.includes(pay)) {
+    payOptions.push(pay);
+  }
+  if (cat && !cats.includes(cat)) {
+    cats.push(cat);
+  }
+
+  let targetRecord;
+  if (editingId) {
+    const r = records.find(x => x.id === editingId);
+    if (r) { Object.assign(r, { date, item, expense, income, cat, pay, note, tag, checked }); targetRecord = r; }
+  } else {
+    targetRecord = { id: Date.now().toString(), date, item, expense, income, cat, pay, note, tag, checked };
+    records.push(targetRecord);
+  }
+
+  save();
+  closeModal();
+  render();
+  pushRecordToNotion(targetRecord);
+}
+
+function deleteRecord() {
+  if (!editingId) return;
+  const r = records.find(x => x.id === editingId);
+  records = records.filter(x => x.id !== editingId);
+  save();
+  closeModal();
+  render();
+  if (r && r.notionId) archiveNotionPage(r.notionId);
+}
+
+// 支付方式 combo
+function showCombo() {
+  const val = document.getElementById('fPay').value.toLowerCase();
+  const opts = payOptions.filter(o => o.toLowerCase().includes(val));
+  const dd = document.getElementById('comboDropdown');
+  if (!opts.length) { dd.classList.add('hidden'); return; }
+  dd.innerHTML = opts.map(o => `<div class="combo-option" onmousedown="selectPay('${o}')">${o}</div>`).join('');
+  dd.classList.remove('hidden');
+}
+function hideCombo() { document.getElementById('comboDropdown').classList.add('hidden'); }
+function selectPay(val) {
+  document.getElementById('fPay').value = val;
+  hideCombo();
+}
+
+// AI 解析
+async function handleAI() {
+  const input = document.getElementById('aiInput').value.trim();
+  if (!input) return;
+  const apiKey = localStorage.getItem('anthropic_key');
+  if (!apiKey) {
+    document.getElementById('settingsPanel').classList.add('open');
+    document.getElementById('apiKeyInput').focus();
+    document.getElementById('apiKeyStatus').textContent = '⚠ 請先填入 API Key 再使用解析功能';
+    document.getElementById('apiKeyStatus').style.color = 'var(--accent)';
+    return;
+  }
+  const btn = document.getElementById('aiBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: `你是記帳解析助手。根據使用者輸入，回傳 JSON 陣列，每筆記錄包含以下欄位：
+- date：日期，格式 YYYY-MM-DD，若使用者未指定則用今天 ${new Date().toISOString().slice(0,10)}
+- item：品項名稱（字串）
+- expense：支出金額（數字，若無則為 0）
+- income：收入金額（數字，若無則為 0）
+- cat：大分類，從這些裡面選一個最接近的：${cats.join('、')}，若無法判斷則空字串
+- pay：支付方式（字串），若使用者未提及則空字串，絕對不要編造
+- note：備註，若使用者未提及任何備註內容，必須是空字串 ""，絕對不要自己生成、填充、重複任何字元或亂碼
+- tag：只能是 "想要"、"需要" 或空字串 ""，若使用者未提及則空字串
+- checked：一律為 false
+
+只回傳純 JSON 陣列，不要任何說明文字、不要 markdown 標記。`,
+        messages: [{ role: 'user', content: input }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '[]';
+    const clean = text.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+
+    parsed.forEach(r => {
+      if (r.pay && !payOptions.includes(r.pay)) payOptions.push(r.pay);
+      records.push({ id: Date.now().toString() + Math.random(), ...r });
+    });
+
+    save();
+    document.getElementById('aiInput').value = '';
+    if (parsed[0]?.date) currentMonth = parsed[0].date.slice(0,7);
+    render();
+  } catch(e) {
+    alert('解析失敗，請手動輸入');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '解析';
+  }
+}
+
+document.getElementById('aiInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleAI();
+});
+
+function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) return;
+  localStorage.setItem('anthropic_key', key);
+  document.getElementById('apiKeyInput').value = '';
+  updateApiKeyStatus();
+}
+
+function clearApiKey() {
+  localStorage.removeItem('anthropic_key');
+  document.getElementById('apiKeyInput').value = '';
+  updateApiKeyStatus();
+}
+
+function updateApiKeyStatus() {
+  const key = localStorage.getItem('anthropic_key');
+  const el = document.getElementById('apiKeyStatus');
+  if (key) {
+    el.textContent = '✓ 已設定（' + key.slice(0,12) + '…）';
+    el.style.color = 'var(--green)';
+  } else {
+    el.textContent = '尚未設定';
+    el.style.color = 'var(--text3)';
+  }
+}
+
+
+function togglePrivacy(id, btn) {
+  const el = document.getElementById(id);
+  const hidden = el.classList.toggle('hidden-val');
+  btn.textContent = hidden ? '★' : '☆';
+  localStorage.setItem('privacy_' + id, hidden ? '1' : '0');
+}
+
+function loadPrivacy() {
+  ['totalExpense','totalIncome'].forEach(id => {
+    const hidden = localStorage.getItem('privacy_' + id) === '1';
+    if (hidden) {
+      document.getElementById(id).classList.add('hidden-val');
+      const btn = document.querySelector(`[onclick="togglePrivacy('${id}',this)"]`);
+      if (btn) btn.textContent = '★';
+    }
+  });
+}
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  document.getElementById('themeBtn').textContent = isLight ? '淺色' : '深色';
+  render();
+}
+
+function loadTheme() {
+  const theme = localStorage.getItem('theme');
+  if (theme === 'light') {
+    document.body.classList.add('light');
+    const btn = document.getElementById('themeBtn');
+    if (btn) btn.textContent = '淺色';
+  }
+}
+
+
+function renderPayOptions() {
+  const el = document.getElementById('payOptionsList');
+  if (!el) return;
+  if (!payOptions.length) {
+    el.innerHTML = '<span style="font-size:12px;color:var(--text3);">尚無選項</span>';
+    return;
+  }
+  el.innerHTML = payOptions.map((o, i) => `
+    <div style="display:flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
+      <span style="font-size:13px;color:var(--text2);">${o}</span>
+      <button onclick="deletePayOption(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;">×</button>
+    </div>
+  `).join('');
+}
+
+function deletePayOption(i) {
+  payOptions.splice(i, 1);
+  save();
+  renderPayOptions();
+}
+
+function renderCatOptions() {
+  const el = document.getElementById('catOptionsList');
+  if (!el) return;
+  if (!cats.length) {
+    el.innerHTML = '<span style="font-size:12px;color:var(--text3);">尚無分類</span>';
+    return;
+  }
+  el.innerHTML = cats.map((o, i) => `
+    <div style="display:flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
+      <span style="font-size:13px;color:var(--text2);">${o}</span>
+      <button onclick="deleteCatOption(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;">×</button>
+    </div>
+  `).join('');
+}
+
+function deleteCatOption(i) {
+  cats.splice(i, 1);
+  save();
+  renderCatOptions();
+}
+
+function toggleSettings() {
+  document.getElementById('settingsPanel').classList.toggle('open');
+  renderPayOptions();
+  renderCatOptions();
+}
+
+function applyColor(varName, value) {
+  document.documentElement.style.setProperty('--' + varName, value);
+  localStorage.setItem('color_' + varName, value);
+}
+
+function applyTagColor(tag, value) {
+  document.documentElement.style.setProperty('--' + tag, value);
+  localStorage.setItem('color_' + tag, value);
+}
+
+function loadColors() {
+  const expense = localStorage.getItem('color_accent');
+  const income = localStorage.getItem('color_green');
+  const want = localStorage.getItem('color_want');
+  const need = localStorage.getItem('color_need');
+  if (expense) { document.documentElement.style.setProperty('--accent', expense); document.getElementById('colorExpense').value = expense; }
+  if (income) { document.documentElement.style.setProperty('--green', income); document.getElementById('colorIncome').value = income; }
+  if (want) { document.documentElement.style.setProperty('--want', want); document.getElementById('colorWant').value = want; }
+  if (need) { document.documentElement.style.setProperty('--need', need); document.getElementById('colorNeed').value = need; }
+}
+
+load();
+loadColors();
+loadPrivacy();
+loadTheme();
+updateApiKeyStatus();
+loadNotionConfig();
+render();
+if (notionEnabled()) pullFromNotion();
+</script>
+</body>
+</html>
