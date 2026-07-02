@@ -888,7 +888,10 @@ async function handleAI() {
 
     parsed.forEach(r => {
       if (r.pay && !payOptions.includes(r.pay)) payOptions.push(r.pay);
-      records.push({ id: Date.now().toString() + Math.random(), ...r });
+      if (r.cat && !cats.includes(r.cat)) cats.push(r.cat);
+      const newRecord = { id: Date.now().toString() + Math.random(), ...r };
+      records.push(newRecord);
+      pushRecordToNotion(newRecord);
     });
 
     save();
