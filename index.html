@@ -225,21 +225,6 @@
     </div>
 
     <div style="border-top:1px solid var(--border);margin:1rem 0;"></div>
-    <div class="settings-title">API Key（AI 解析功能）</div>
-    <div class="color-row" style="align-items:flex-start;flex-direction:column;gap:6px;">
-      <div style="display:flex;gap:8px;width:100%;">
-        <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-…" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:13px;color:var(--text);outline:none;font-family:monospace;" />
-        <button class="btn btn-ghost" onclick="saveApiKey()" style="white-space:nowrap;">儲存</button>
-        <button class="btn btn-ghost" onclick="clearApiKey()" style="white-space:nowrap;color:var(--accent);">清除</button>
-      </div>
-      <div id="apiKeyStatus" style="font-size:12px;color:var(--text3);">尚未設定</div>
-      <div style="font-size:12px;color:var(--text3);line-height:1.6;">
-        Key 只存在你的瀏覽器，不會傳送到任何伺服器。<br>
-        申請網址：<a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--text2);">console.anthropic.com</a>
-      </div>
-    </div>
-
-    <div style="border-top:1px solid var(--border);margin:1rem 0;"></div>
     <div class="settings-title">支付方式管理</div>
     <div id="payOptionsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
 
@@ -276,9 +261,9 @@
 
   <!-- AI 輸入 -->
   <div class="ai-box">
-    <div class="ai-label">✦ 用自然語言輸入，AI 自動解析</div>
+    <div class="ai-label">✦ 快速輸入（免費），有設定 API Key 則自動使用 AI 解析</div>
     <div class="ai-row">
-      <input class="ai-input" id="aiInput" type="text" placeholder="例：午餐便當 120 / ikea 478 刷卡 / 收入獎金 3000" />
+      <input class="ai-input" id="aiInput" type="text" placeholder="例：7/1 午餐 120 現金；購物 蝦皮 300" />
       <button class="ai-btn" id="aiBtn" onclick="handleAI()">解析</button>
     </div>
   </div>
@@ -839,102 +824,81 @@ function selectPay(val) {
 }
 
 // AI 解析
-async function handleAI() {
+// ===== 本機快速解析（免費，不需 API）=====
+function localParseInput(rawText) {
+  const segments = rawText.split(/[；;]/).map(s => s.trim()).filter(Boolean);
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+
+  return segments.map(seg => {
+    let text = seg;
+    let date = todayStr;
+    let income = 0, expense = 0, cat = '', pay = '', tag = '';
+
+    // 日期偵測：M/D 格式
+    const dateMatch = text.match(/(\d{1,2})\/(\d{1,2})/);
+    if (dateMatch) {
+      const mm = String(dateMatch[1]).padStart(2,'0');
+      const dd = String(dateMatch[2]).padStart(2,'0');
+      date = `${today.getFullYear()}-${mm}-${dd}`;
+      text = text.replace(dateMatch[0], '').trim();
+    } else if (text.includes('昨天')) {
+      const d = new Date(today); d.setDate(d.getDate()-1);
+      date = d.toISOString().slice(0,10);
+      text = text.replace('昨天','').trim();
+    } else if (text.includes('今天')) {
+      text = text.replace('今天','').trim();
+    }
+
+    // 收入判斷
+    const isIncome = text.includes('收入') || text.includes('薪水') || text.includes('獎金');
+    text = text.replace(/收入/g,'').trim();
+
+    // 金額偵測（取第一個數字）
+    const numMatch = text.match(/\d+(\.\d+)?/);
+    const amount = numMatch ? parseFloat(numMatch[0]) : 0;
+    if (numMatch) text = text.replace(numMatch[0], '').trim();
+    if (isIncome) income = amount; else expense = amount;
+
+    // 分類比對
+    for (const c of cats) {
+      if (text.includes(c)) { cat = c; text = text.replace(c,'').trim(); break; }
+    }
+    // 支付方式比對
+    for (const p of payOptions) {
+      if (text.includes(p)) { pay = p; text = text.replace(p,'').trim(); break; }
+    }
+    // 標籤比對
+    if (text.includes('想要')) { tag = '想要'; text = text.replace('想要','').trim(); }
+    else if (text.includes('需要')) { tag = '需要'; text = text.replace('需要','').trim(); }
+
+    const item = text.trim() || '未命名';
+
+    return { date, item, expense, income, cat, pay, tag, note: '', checked: false };
+  });
+}
+
+function handleAI() {
   const input = document.getElementById('aiInput').value.trim();
   if (!input) return;
-  const apiKey = localStorage.getItem('anthropic_key');
-  if (!apiKey) {
-    document.getElementById('settingsPanel').classList.add('open');
-    document.getElementById('apiKeyInput').focus();
-    document.getElementById('apiKeyStatus').textContent = '⚠ 請先填入 API Key 再使用解析功能';
-    document.getElementById('apiKeyStatus').style.color = 'var(--accent)';
-    return;
-  }
-  const btn = document.getElementById('aiBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>';
 
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        system: `你是記帳解析助手。根據使用者輸入，回傳 JSON 陣列，每筆記錄包含以下欄位：
-- date：日期，格式 YYYY-MM-DD，若使用者未指定則用今天 ${new Date().toISOString().slice(0,10)}
-- item：品項名稱（字串）
-- expense：支出金額（數字，若無則為 0）
-- income：收入金額（數字，若無則為 0）
-- cat：大分類，從這些裡面選一個最接近的：${cats.join('、')}，若無法判斷則空字串
-- pay：支付方式（字串），若使用者未提及則空字串，絕對不要編造
-- note：備註，若使用者未提及任何備註內容，必須是空字串 ""，絕對不要自己生成、填充、重複任何字元或亂碼
-- tag：只能是 "想要"、"需要" 或空字串 ""，若使用者未提及則空字串
-- checked：一律為 false
-
-只回傳純 JSON 陣列，不要任何說明文字、不要 markdown 標記。`,
-        messages: [{ role: 'user', content: input }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.[0]?.text || '[]';
-    const clean = text.replace(/```json|```/g,'').trim();
-    const parsed = JSON.parse(clean);
-
-    parsed.forEach(r => {
-      if (r.pay && !payOptions.includes(r.pay)) payOptions.push(r.pay);
-      if (r.cat && !cats.includes(r.cat)) cats.push(r.cat);
-      const newRecord = { id: Date.now().toString() + Math.random(), ...r };
-      records.push(newRecord);
-      pushRecordToNotion(newRecord);
-    });
-
-    save();
-    document.getElementById('aiInput').value = '';
-    if (parsed[0]?.date) currentMonth = parsed[0].date.slice(0,7);
-    render();
-  } catch(e) {
-    alert('解析失敗，請手動輸入');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '解析';
-  }
+  const parsed = localParseInput(input);
+  parsed.forEach(r => {
+    if (r.pay && !payOptions.includes(r.pay)) payOptions.push(r.pay);
+    if (r.cat && !cats.includes(r.cat)) cats.push(r.cat);
+    const newRecord = { id: Date.now().toString() + Math.random(), ...r };
+    records.push(newRecord);
+    pushRecordToNotion(newRecord);
+  });
+  save();
+  document.getElementById('aiInput').value = '';
+  if (parsed[0]?.date) currentMonth = parsed[0].date.slice(0,7);
+  render();
 }
 
 document.getElementById('aiInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') handleAI();
 });
-
-function saveApiKey() {
-  const key = document.getElementById('apiKeyInput').value.trim();
-  if (!key) return;
-  localStorage.setItem('anthropic_key', key);
-  document.getElementById('apiKeyInput').value = '';
-  updateApiKeyStatus();
-}
-
-function clearApiKey() {
-  localStorage.removeItem('anthropic_key');
-  document.getElementById('apiKeyInput').value = '';
-  updateApiKeyStatus();
-}
-
-function updateApiKeyStatus() {
-  const key = localStorage.getItem('anthropic_key');
-  const el = document.getElementById('apiKeyStatus');
-  if (key) {
-    el.textContent = '✓ 已設定（' + key.slice(0,12) + '…）';
-    el.style.color = 'var(--green)';
-  } else {
-    el.textContent = '尚未設定';
-    el.style.color = 'var(--text3)';
-  }
-}
 
 
 function togglePrivacy(id, btn) {
@@ -1045,7 +1009,6 @@ load();
 loadColors();
 loadPrivacy();
 loadTheme();
-updateApiKeyStatus();
 loadNotionConfig();
 render();
 if (notionEnabled()) pullFromNotion();
