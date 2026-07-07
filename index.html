@@ -275,6 +275,7 @@
       <div class="summary-card"><div class="s-label">總花費 <button class="eye-btn" onclick="togglePrivacy('totalExpense',this)">☆</button></div><div class="s-val red" id="totalExpense">$0</div></div>
       <div class="summary-card"><div class="s-label">總收入 <button class="eye-btn" onclick="togglePrivacy('totalIncome',this)">☆</button></div><div class="s-val green" id="totalIncome">$0</div></div>
       <div class="summary-card"><div class="s-label">筆數</div><div class="s-val neutral" id="totalCount">0</div></div>
+      <div class="summary-card"><div class="s-label">待收款</div><div class="s-val" style="color:var(--want);" id="totalOwed">$0</div></div>
     </div>
     <div class="chart-wrap" id="chartWrap" style="align-self:stretch;">
       <div class="chart-empty">這個月還沒有支出記錄</div>
@@ -362,6 +363,18 @@
         <textarea id="fNote" placeholder="選填" oninput="calcNote();autoResize(this)" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:14px;color:var(--text);outline:none;width:100%;font-family:inherit;resize:none;min-height:70px;display:block;overflow:hidden;"></textarea>
         <div id="noteCalcResult" style="font-size:12px;color:var(--text2);margin-top:4px;min-height:18px;"></div>
       </div>
+      <div class="field-row">
+        <div class="field">
+          <label>對方姓名（借出款項）</label>
+          <input type="text" id="fOwer" placeholder="選填，例：小美" />
+        </div>
+        <div class="field" style="justify-content:flex-end;">
+          <label class="check-field" style="margin-top:22px;">
+            <input type="checkbox" id="fRepaid" />
+            <span>已還款</span>
+          </label>
+        </div>
+      </div>
       <label class="check-field">
         <input type="checkbox" id="fCheck" />
         <span>已處理完成</span>
@@ -433,6 +446,8 @@ function buildNotionProperties(r) {
     '支付方式': { select: r.pay ? { name: r.pay } : null },
     '標籤': { select: r.tag ? { name: r.tag } : null },
     '已完成': { checkbox: !!r.checked },
+    '對方姓名': { rich_text: [{ text: { content: r.ower || '' } }] },
+    '已還款': { checkbox: !!r.repaid },
     '備註': { rich_text: [{ text: { content: r.note || '' } }] }
   };
 }
@@ -488,6 +503,8 @@ function parseNotionPage(page) {
     pay: getSelect(p['支付方式']),
     tag: getSelect(p['標籤']),
     checked: p['已完成']?.checkbox || false,
+    ower: getText(p['對方姓名']),
+    repaid: p['已還款']?.checkbox || false,
     note: getText(p['備註'])
   };
 }
@@ -571,6 +588,11 @@ function render() {
 
   renderChart(filtered);
   renderTable();
+
+  const totalOwed = records
+    .filter(r => r.ower && parseFloat(r.expense) > 0 && !r.repaid)
+    .reduce((s,r) => s + parseFloat(r.expense), 0);
+  document.getElementById('totalOwed').textContent = `$${totalOwed.toLocaleString()}`;
 }
 
 function renderChart(filtered) {
@@ -626,7 +648,7 @@ function renderTable() {
   body.innerHTML = filtered.map(r => `
     <div class="table-row" onclick="openModal('${r.id}')">
       <div class="cell date">${r.date ? r.date.slice(5).replace('-','/') : ''}</div>
-      <div class="cell">${r.item || '—'}</div>
+      <div class="cell">${r.item || '—'}${r.ower && !r.repaid ? ` <span style="font-size:10px;color:var(--want);">(${r.ower}欠)</span>` : ''}</div>
       <div class="cell amount">${r.expense ? '$'+parseFloat(r.expense).toLocaleString() : '—'}</div>
       <div class="cell income ${r.income && parseFloat(r.income) > 0 ? '' : 'empty'}">${r.income && parseFloat(r.income) > 0 ? '$'+parseFloat(r.income).toLocaleString() : '—'}</div>
       <div class="cell"><span class="cat-tag">${r.cat || '—'}</span></div>
@@ -672,6 +694,8 @@ function openModal(id) {
       document.getElementById('fPay').value = r.pay || '';
       document.getElementById('fNote').value = r.note || '';
       document.getElementById('fCheck').checked = r.checked || false;
+      document.getElementById('fOwer').value = r.ower || '';
+      document.getElementById('fRepaid').checked = r.repaid || false;
       loadTag(r.tag || '');
     }
   } else {
@@ -686,6 +710,8 @@ function openModal(id) {
     document.getElementById('fPay').value = '';
     document.getElementById('fNote').value = '';
     document.getElementById('fCheck').checked = false;
+    document.getElementById('fOwer').value = '';
+    document.getElementById('fRepaid').checked = false;
     resetTags();
   }
 }
@@ -772,6 +798,8 @@ function saveRecord() {
   const pay = document.getElementById('fPay').value.trim();
   const note = document.getElementById('fNote').value.trim();
   const checked = document.getElementById('fCheck').checked;
+  const ower = document.getElementById('fOwer').value.trim();
+  const repaid = document.getElementById('fRepaid').checked;
   const tag = document.querySelector('#tagWant.active') ? '想要' : document.querySelector('#tagNeed.active') ? '需要' : '';
 
   if (!item && !expense && !income) return;
@@ -786,9 +814,9 @@ function saveRecord() {
   let targetRecord;
   if (editingId) {
     const r = records.find(x => x.id === editingId);
-    if (r) { Object.assign(r, { date, item, expense, income, cat, pay, note, tag, checked }); targetRecord = r; }
+    if (r) { Object.assign(r, { date, item, expense, income, cat, pay, note, tag, checked, ower, repaid }); targetRecord = r; }
   } else {
-    targetRecord = { id: Date.now().toString(), date, item, expense, income, cat, pay, note, tag, checked };
+    targetRecord = { id: Date.now().toString(), date, item, expense, income, cat, pay, note, tag, checked, ower, repaid };
     records.push(targetRecord);
   }
 
